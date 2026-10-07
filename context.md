@@ -74,7 +74,8 @@ The application is a single unified **Next.js 15+** application using the **App 
 * **Framework:** Next.js 15+ (App Router, React Server Components, Server Actions, Dynamic Tag Revalidation)
 * **Styling:** Tailwind CSS v4 (Shadcn/ui for UI components)
 * **Database:** Supabase (PostgreSQL) via Prisma ORM v7
-* **LLM:** Google Gen AI SDK `@google/genai` (official modern SDK):
+* **LLM:** Google Gen AI SDK `@google/genai` (official modern SDK) via **Vertex AI** (bills to GCP credits, auth via service account):
+    - Auth: service account `round-sunset-497816-v0-6c8f1a3f4a2a.json` — SDK reads `GOOGLE_APPLICATION_CREDENTIALS` and handles JWT signing + token refresh automatically
     - `gemini-3.8-flash` — latest ultra-fast model for RSS ingestion, topic clustering, and synthesis with native `responseSchema` structured JSON support.
     - `gemini-3.8-pro` — advanced reasoning model for final article drafting, structured GEO optimization, and entity mapping.
 * **RSS Parsing:** `rss-parser` (Node.js)
@@ -159,7 +160,11 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { prisma } from "@/lib/prisma";
 
 const parser = new Parser();
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+const ai = new GoogleGenAI({
+  vertexai: true,
+  project: process.env.VERTEX_PROJECT_ID!,
+  location: process.env.VERTEX_REGION ?? "us-central1"
+});
 
 const REGIONS = [
   "Uttarakhand", "Himachal Pradesh", "Ladakh", "Sikkim",
@@ -292,7 +297,11 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath, revalidateTag } from "next/cache";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+const ai = new GoogleGenAI({
+  vertexai: true,
+  project: process.env.VERTEX_PROJECT_ID!,
+  location: process.env.VERTEX_REGION ?? "us-central1"
+});
 
 export async function generateArticlePreview({
   draftId,
@@ -539,8 +548,11 @@ Key Improvements with Gemini 3.8:
 ## 8. Environment Variables
 
 ```env
-DATABASE_URL=            # Supabase PostgreSQL connection string
-GEMINI_API_KEY=          # Google AI Studio API key (Gemini 3.8 models)
+DATABASE_URL=                      # Supabase PostgreSQL connection string
+GOOGLE_APPLICATION_CREDENTIALS=round-sunset-497816-v0-6c8f1a3f4a2a.json  # local dev
+GOOGLE_SERVICE_ACCOUNT_JSON=       # base64 of service account JSON — Vercel only
+VERTEX_PROJECT_ID=round-sunset-497816-v0
+VERTEX_REGION=us-central1
 CRON_SECRET=             # Secret bearer token for Vercel Cron
 ADMIN_ACCESS_PASSPHRASE= # Passphrase for admin action validation
 ```

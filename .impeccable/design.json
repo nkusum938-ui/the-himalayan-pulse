@@ -1,0 +1,9 @@
+{
+  "mode": "Read",
+  "archetype": "Journalistic Broadsheet",
+  "palette": {
+    "primary": "#1e3a2b",
+    "background": "#fcfbf9",
+    "foreground": "#1c1917"
+  }
+}

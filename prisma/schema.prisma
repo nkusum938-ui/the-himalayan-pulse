@@ -1,0 +1,58 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Tracks ingest runs per date to enforce cron/manual mutual exclusion
+model IngestRun {
+  id        String   @id @default(cuid())
+  runDate   String   // "YYYY-MM-DD"
+  runType   String   // "cron" | "manual"
+  createdAt DateTime @default(now())
+
+  @@unique([runDate]) // one run per date only
+}
+
+// Top 3 AI-clustered drafts from daily ingest (cron or manual)
+model DraftQueue {
+  id                 String   @id @default(cuid())
+  topic              String
+  synthesizedContext String   // AI cross-source synthesis
+  sources            String[] // Original article URLs
+  imageUrl           String?  // Representative primary image from sources
+  images             String[] @default([]) // All extracted images across cluster sources
+  mythsAndFacts      String[] @default([]) // Discovered myths and factual verdicts
+  impactAnalysis     String?  // Factual assessment of regional/environmental impact
+  runDate            String   // "YYYY-MM-DD" — which date this draft belongs to
+  status             String   @default("draft") // "draft" | "generated" | "published"
+  publishedSlug      String?  // slug of published post
+  publishedTitle     String?
+  createdAt          DateTime @default(now())
+}
+
+// Final published (or preview-ready) articles
+model Post {
+  id              String   @id @default(cuid())
+  draftId         String?  // links back to DraftQueue
+  title           String
+  slug            String   @unique
+  content         String   // Full Markdown article body
+  excerpt         String   // 2-sentence SEO meta description
+  metaKeywords    String   // Comma-separated long-tail keywords
+  keyTakeaways    String[] // 3 bullet points for GEO / AI Overviews
+  mythsAndFacts   String[] @default([]) // Myth busting & fact check bullets
+  impactAnalysis  String?  // Factual regional impact analysis (good or bad and why)
+  entities        String[] // Named entities for semantic indexing
+  authorName      String   @default("Himalayan Pulse Editorial Desk") // Editor or publisher name
+  authorRole      String   @default("Senior Regional Editor") // Author role/title
+  imageUrl        String?  // Primary featured image
+  images          String[] @default([]) // Gallery & inline images
+  originalSources String[] // Source attribution links
+  publishedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  isDraft         Boolean  @default(true) // true = generated/preview, false = published
+  articleDate     String   // "YYYY-MM-DD" — the date this article is for
+}

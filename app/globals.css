@@ -1,26 +1,88 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --spruce: #1e3a2b;
+  --spruce-hover: #2d5a40;
+  --slate-dark: #0f172a;
+  --slate-mid: #1e293b;
+  --slate-muted: #64748b;
+  --border-mist: #e2e8f0;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-spruce: var(--spruce);
+  --color-spruce-hover: var(--spruce-hover);
+  --color-slate-dark: var(--slate-dark);
+  --color-slate-mid: var(--slate-mid);
+  --color-slate-muted: var(--slate-muted);
+  --color-border-mist: var(--border-mist);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #090d16;
+    --foreground: #f1f5f9;
+    --spruce: #2d5a40;
+    --spruce-hover: #3d7554;
+    --slate-dark: #f8fafc;
+    --slate-mid: #cbd5e1;
+    --slate-muted: #94a3b8;
+    --border-mist: #1e293b;
   }
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Journalistic Broadsheet Rules */
+.news-border-b {
+  border-bottom: 1px solid var(--border-mist);
+}
+
+.news-border-t {
+  border-top: 1px solid var(--border-mist);
+}
+
+.news-border-r {
+  border-right: 1px solid var(--border-mist);
+}
+
+.news-border-l {
+  border-left: 1px solid var(--border-mist);
+}
+
+.news-card {
+  background-color: var(--background);
+  border: 1px solid var(--border-mist);
+  border-radius: 2px;
+  transition: border-color 0.15s ease-in-out;
+}
+
+.news-card:hover {
+  border-color: var(--spruce);
+}
+
+.badge-mono {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 2px;
+  border: 1px solid var(--border-mist);
 }
