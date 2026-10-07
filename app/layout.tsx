@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -20,13 +22,46 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://thehimalayanpulse.com/#organization",
+        "name": "The Himalayan Pulse",
+        "url": "https://thehimalayanpulse.com",
+        "logo": "https://thehimalayanpulse.com/logo.png",
+        "sameAs": [],
+        "description": "Independent reporting on Himalayan environment, culture, and community life across Uttarakhand, Himachal, Ladakh, Sikkim, Nepal, Bhutan, and Arunachal Pradesh."
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://thehimalayanpulse.com/#website",
+        "url": "https://thehimalayanpulse.com",
+        "name": "The Himalayan Pulse",
+        "publisher": {
+          "@id": "https://thehimalayanpulse.com/#organization"
+        },
+        "inLanguage": "en-US"
+      }
+    ]
+  };
+
   return (
     <html
       lang="en"
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body suppressHydrationWarning className="min-h-full flex flex-col">{children}</body>
+      <body suppressHydrationWarning className="min-h-full flex flex-col">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+        {children}
+        <Analytics />
+        <SpeedInsights />
+      </body>
     </html>
   );
 }
