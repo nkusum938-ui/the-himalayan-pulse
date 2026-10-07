@@ -4,10 +4,15 @@ import { prisma } from "@/lib/prisma";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = "https://thehimalayanpulse.com";
 
-  const posts = await prisma.post.findMany({
-    where: { isDraft: false },
-    select: { slug: true, updatedAt: true, publishedAt: true },
-  });
+  let posts: Array<{ slug: string; updatedAt?: Date; publishedAt: Date }> = [];
+  try {
+    posts = await prisma.post.findMany({
+      where: { isDraft: false },
+      select: { slug: true, updatedAt: true, publishedAt: true },
+    });
+  } catch (err) {
+    console.error("[sitemap DB Error]", err);
+  }
 
   const articleUrls: MetadataRoute.Sitemap = posts.map(
     (post: { slug: string; updatedAt?: Date; publishedAt: Date }) => ({

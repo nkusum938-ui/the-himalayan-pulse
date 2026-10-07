@@ -18,22 +18,27 @@ interface PostSummary {
 }
 
 async function getPublishedPosts(): Promise<PostSummary[]> {
-  return prisma.post.findMany({
-    where: { isDraft: false },
-    orderBy: { publishedAt: "desc" },
-    select: {
-      id: true,
-      title: true,
-      slug: true,
-      excerpt: true,
-      entities: true,
-      keyTakeaways: true,
-      authorName: true,
-      publishedAt: true,
-      articleDate: true,
-      imageUrl: true,
-    },
-  });
+  try {
+    return await prisma.post.findMany({
+      where: { isDraft: false },
+      orderBy: { publishedAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        excerpt: true,
+        entities: true,
+        keyTakeaways: true,
+        authorName: true,
+        publishedAt: true,
+        articleDate: true,
+        imageUrl: true,
+      },
+    });
+  } catch (err) {
+    console.error("[getPublishedPosts DB Error]", err);
+    return [];
+  }
 }
 
 export default async function Home() {

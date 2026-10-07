@@ -10,16 +10,26 @@ interface Props {
 }
 
 export async function generateStaticParams() {
-  const posts = await prisma.post.findMany({
-    where: { isDraft: false },
-    select: { slug: true },
-  });
-  return posts.map((p: { slug: string }) => ({ slug: p.slug }));
+  try {
+    const posts = await prisma.post.findMany({
+      where: { isDraft: false },
+      select: { slug: true },
+    });
+    return posts.map((p: { slug: string }) => ({ slug: p.slug }));
+  } catch (err) {
+    console.error("[generateStaticParams DB Error]", err);
+    return [];
+  }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const post = await prisma.post.findUnique({ where: { slug } });
+  let post = null;
+  try {
+    post = await prisma.post.findUnique({ where: { slug } });
+  } catch (err) {
+    console.error("[generateMetadata DB Error]", err);
+  }
   if (!post) return {};
 
   const canonicalUrl = `https://thehimalayanpulse.com/news/${slug}`;
@@ -50,9 +60,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ArticlePage({ params }: Props) {
   const { slug } = await params;
 
-  const post = await prisma.post.findUnique({
-    where: { slug, isDraft: false },
-  });
+  let post = null;
+  try {
+    post = await prisma.post.findUnique({
+      where: { slug, isDraft: false },
+    });
+  } catch (err) {
+    console.error("[ArticlePage DB Error]", err);
+  }
   if (!post) notFound();
 
   const jsonLd = {
