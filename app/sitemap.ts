@@ -9,12 +9,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     select: { slug: true, updatedAt: true, publishedAt: true },
   });
 
-  const articleUrls: MetadataRoute.Sitemap = posts.map((post) => ({
-    url: `${baseUrl}/news/${post.slug}`,
-    lastModified: post.updatedAt || post.publishedAt,
-    changeFrequency: "weekly",
-    priority: 0.8,
-  }));
+  const articleUrls: MetadataRoute.Sitemap = posts.map(
+    (post: { slug: string; updatedAt?: Date; publishedAt: Date }) => ({
+      url: `${baseUrl}/news/${post.slug}`,
+      lastModified: post.updatedAt || post.publishedAt,
+      changeFrequency: "weekly",
+      priority: 0.8,
+    })
+  );
 
   const staticUrls: MetadataRoute.Sitemap = [
     { url: baseUrl, lastModified: new Date(), changeFrequency: "daily", priority: 1.0 },

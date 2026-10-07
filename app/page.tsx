@@ -4,7 +4,20 @@ import { NewsletterSubscribe } from "@/components/NewsletterSubscribe";
 
 export const revalidate = 60; // ISR: revalidate every 60 seconds
 
-async function getPublishedPosts() {
+interface PostSummary {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  entities: string[];
+  keyTakeaways: string[];
+  authorName: string;
+  publishedAt: Date;
+  articleDate: string;
+  imageUrl: string | null;
+}
+
+async function getPublishedPosts(): Promise<PostSummary[]> {
   return prisma.post.findMany({
     where: { isDraft: false },
     orderBy: { publishedAt: "desc" },
@@ -123,7 +136,7 @@ export default async function Home() {
             {restPosts.length > 0 && (
               <section>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-                  {restPosts.map((post) => (
+                  {restPosts.map((post: PostSummary) => (
                     <Link
                       key={post.id}
                       href={`/news/${post.slug}`}
