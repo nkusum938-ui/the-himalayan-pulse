@@ -143,6 +143,8 @@ export default function AdminPage() {
   const [statusBanner, setStatusBanner] = useState<string | null>(null);
   const [isIngestRunning, setIsIngestRunning] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [uploadImageStatus, setUploadImageStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
   const [activeTab, setActiveTab] = useState<"rss" | "custom">("rss");
   const [customNotes, setCustomNotes] = useState("");
   const [isGeneratingCustom, setIsGeneratingCustom] = useState(false);
@@ -189,41 +191,53 @@ export default function AdminPage() {
     }
   };
 
-  const handleLocalImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLocalImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !preview) return;
 
     if (!file.type.startsWith("image/")) {
+      setUploadImageStatus("error");
       showBanner("Error: Selected file is not an image.");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
+      setUploadImageStatus("error");
       showBanner("Error: Image file size must be less than 5MB.");
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const base64Url = reader.result as string;
-      if (base64Url) {
-        showBanner("Uploading local image...", 10000);
-        try {
-          const updateRes = await updatePostImage(preview.postId, base64Url);
-          if (updateRes.success) {
-            // Use the local base64Url for preview display — never rely on server action to echo it back
-            setPreview({
-              ...preview,
-              imageUrl: base64Url,
-              images: updateRes.images,
-            });
-            showBanner("Local image uploaded and attached to article!");
-          }
-        } catch {
-          showBanner("Failed to attach local image.");
-        }
+    setIsUploadingImage(true);
+    setUploadImageStatus("uploading");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("postId", preview.postId);
+      formData.append("passphrase", authPassphrase);
+
+      const res = await fetch("/api/admin/upload-image", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.imageUrl) {
+        setPreview({ ...preview, imageUrl: data.imageUrl });
+        setUploadImageStatus("success");
+        showBanner("Image uploaded, optimized to WebP & attached!");
+        setTimeout(() => setUploadImageStatus("idle"), 3000);
+      } else {
+        setUploadImageStatus("error");
+        showBanner(`Error: ${data.error ?? "Upload failed"}`);
+        setTimeout(() => setUploadImageStatus("idle"), 4000);
       }
-    };
-    reader.readAsDataURL(file);
+    } catch {
+      setUploadImageStatus("error");
+      showBanner("Failed to attach local image.");
+      setTimeout(() => setUploadImageStatus("idle"), 4000);
+    } finally {
+      setIsUploadingImage(false);
+      // Reset file input so same file can be re-uploaded if needed
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   // Load drafts whenever date changes
@@ -695,9 +709,24 @@ export default function AdminPage() {
                     />
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-3 py-1 bg-[#e7e5e4] dark:bg-[#27272a] hover:bg-[#d6d3d1] dark:hover:bg-[#3f3f46] text-[#1c1917] dark:text-[#f5f5f4] text-[11px] font-mono rounded-[2px] transition-colors font-bold"
+                      disabled={isUploadingImage}
+                      className={`px-3 py-1 text-[11px] font-mono rounded-[2px] transition-colors font-bold disabled:cursor-not-allowed
+                        ${uploadImageStatus === "success"
+                          ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300"
+                          : uploadImageStatus === "error"
+                          ? "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300 border border-red-300"
+                          : uploadImageStatus === "uploading"
+                          ? "bg-[#e7e5e4] dark:bg-[#27272a] text-[#78716c] border border-[#d6d3d1] opacity-70"
+                          : "bg-[#e7e5e4] dark:bg-[#27272a] hover:bg-[#d6d3d1] dark:hover:bg-[#3f3f46] text-[#1c1917] dark:text-[#f5f5f4] border border-[#d6d3d1]"
+                        }`}
                     >
-                      📁 Upload Image
+                      {uploadImageStatus === "uploading"
+                        ? "⏳ Uploading & Optimizing..."
+                        : uploadImageStatus === "success"
+                        ? "✓ Uploaded!"
+                        : uploadImageStatus === "error"
+                        ? "✕ Failed — Retry"
+                        : "📁 Upload Image"}
                     </button>
                     <button
                       onClick={handleGenerateAIImage}
@@ -711,14 +740,29 @@ export default function AdminPage() {
 
                 {preview.imageUrl ? (
                   <div className="relative aspect-video w-full max-h-64 overflow-hidden rounded-[2px] border border-[#d6d3d1]">
+                    {isUploadingImage && (
+                      <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center z-10 gap-2">
+                        <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span className="text-white text-xs font-mono font-bold">Optimizing to WebP...</span>
+                      </div>
+                    )}
                     <img src={preview.imageUrl} alt="Featured" className="w-full h-full object-cover" />
                     <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/75 text-white text-[10px] font-mono font-bold">
                       Primary Featured Image
                     </span>
                   </div>
                 ) : (
-                  <div className="p-6 border border-dashed border-[#d6d3d1] text-center text-xs font-mono text-[#78716c]">
-                    No image attached yet. Click "Generate AI Image" to create one.
+                  <div className={`p-6 border border-dashed text-center text-xs font-mono relative ${
+                    isUploadingImage ? "border-[#1e3a2b] text-[#1e3a2b]" : "border-[#d6d3d1] text-[#78716c]"
+                  }`}>
+                    {isUploadingImage ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-6 h-6 border-2 border-[#1e3a2b] border-t-transparent rounded-full animate-spin" />
+                        <span>Uploading & optimizing to WebP...</span>
+                      </div>
+                    ) : (
+                      "No image attached yet. Upload a local image or generate with AI."
+                    )}
                   </div>
                 )}
 
