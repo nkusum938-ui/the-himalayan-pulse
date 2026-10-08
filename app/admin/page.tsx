@@ -12,6 +12,7 @@ import {
   generateAIImage,
   updatePostImage,
   generateCustomArticlePreview,
+  updatePublishedPost,
 } from "@/app/actions/generateArticle";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -46,6 +47,7 @@ interface GeneratedPreview {
   authorRole?: string;
   imageUrl?: string | null;
   images?: string[];
+  isDraft?: boolean;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -144,6 +146,9 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"rss" | "custom">("rss");
   const [customNotes, setCustomNotes] = useState("");
   const [isGeneratingCustom, setIsGeneratingCustom] = useState(false);
+  const [isEditingPublishedText, setIsEditingPublishedText] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
   const [isPending, startTransition] = useTransition();
 
   const handleCustomGenerate = async () => {
@@ -357,6 +362,36 @@ export default function AdminPage() {
     }
   };
 
+  // Update published article
+  const handleUpdatePublished = () => {
+    if (!preview) return;
+    startTransition(async () => {
+      showBanner("Updating published article live on site...", 60000);
+      try {
+        const res = await updatePublishedPost({
+          postId: preview.postId,
+          title: editTitle.trim() || preview.title,
+          content: editContent.trim() || preview.content,
+          authorName,
+          authorRole,
+          imageUrl: preview.imageUrl,
+        });
+        if (res.success && res.post) {
+          setPreview({
+            ...preview,
+            title: res.post.title,
+            content: res.post.content,
+          });
+          setIsEditingPublishedText(false);
+          await loadDrafts(selectedDate);
+          showBanner("Published article updated live on site!");
+        }
+      } catch {
+        showBanner("Failed to update published article.");
+      }
+    });
+  };
+
   // Publish the generated article
   const handlePublish = () => {
     if (!preview || !selectedDraft) return;
@@ -367,6 +402,7 @@ export default function AdminPage() {
         setPreview(null);
         setAdminViews("");
         setShowEditViews(false);
+        setIsEditingPublishedText(false);
         await loadDrafts(selectedDate);
         showBanner("Article published successfully. Live on public site!");
       } catch (err: unknown) {
@@ -376,17 +412,20 @@ export default function AdminPage() {
     });
   };
 
-  // Pick a draft — load preview if already generated
+  // Pick a draft — load preview if already generated or published
   const selectDraft = async (draft: DraftTopic) => {
     setSelectedDraft(draft);
     setPreview(null);
     setAdminViews("");
     setShowEditViews(false);
+    setIsEditingPublishedText(false);
 
-    if (draft.status === "generated") {
+    if (draft.status === "generated" || draft.status === "published") {
       const prev = await getGeneratedPreview(draft.id);
       if (prev) {
         setPreview(prev as GeneratedPreview);
+        setEditTitle(prev.title);
+        setEditContent(prev.content);
         if (prev.authorName) setAuthorName(prev.authorName);
         if (prev.authorRole) setAuthorRole(prev.authorRole);
       }
@@ -536,12 +575,8 @@ export default function AdminPage() {
                 return (
                   <div
                     key={draft.id}
-                    onClick={() => !isPublished && selectDraft(draft)}
-                    className={`p-5 border rounded-[2px] transition-all ${
-                      isPublished
-                        ? "opacity-60 cursor-default"
-                        : "cursor-pointer"
-                    } ${
+                    onClick={() => selectDraft(draft)}
+                    className={`p-5 border rounded-[2px] transition-all cursor-pointer ${
                       isSelected
                         ? "bg-[#f5f4f0] dark:bg-[#1c1917] border-[#1e3a2b] dark:border-[#488263] shadow-xs"
                         : "bg-[#fcfbf9] dark:bg-[#141210] border-[#e7e5e4] dark:border-[#27272a] hover:border-[#d6d3d1]"
@@ -550,7 +585,7 @@ export default function AdminPage() {
                     <div className="flex justify-between items-center text-xs font-mono text-[#78716c] mb-2">
                       <span>{ingestRunType === "cron" ? "Cron" : "Manual"} · {formatDate(draft.runDate)}</span>
                       {isPublished ? (
-                        <span className="text-[#1e3a2b] dark:text-[#86efac] font-bold uppercase">✓ Published</span>
+                        <span className="text-[#1e3a2b] dark:text-[#86efac] font-bold uppercase">✓ Published (Editable)</span>
                       ) : isGenerated ? (
                         <span className="text-blue-600 dark:text-blue-400 font-bold uppercase">Generated</span>
                       ) : (
@@ -567,22 +602,22 @@ export default function AdminPage() {
                     </p>
 
                     {isPublished && draft.publishedSlug && (
-                      <Link
-                        href={`/news/${draft.publishedSlug}`}
-                        className="text-xs font-mono text-[#1e3a2b] dark:text-[#488263] hover:underline"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        View published article →
-                      </Link>
+                      <div className="mb-2">
+                        <Link
+                          href={`/news/${draft.publishedSlug}`}
+                          className="text-xs font-mono text-[#1e3a2b] dark:text-[#488263] hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          View published article →
+                        </Link>
+                      </div>
                     )}
 
                     <div className="flex items-center justify-between text-xs font-mono pt-3 mt-1 border-t border-[#e7e5e4] dark:border-[#27272a]">
                       <span className="text-[#78716c]">{draft.sources.length} Sources</span>
-                      {!isPublished && (
-                        <span className={isSelected ? "text-[#1e3a2b] dark:text-[#86efac] font-bold" : "text-[#78716c]"}>
-                          {isSelected ? "Selected →" : "Select"}
-                        </span>
-                      )}
+                      <span className={isSelected ? "text-[#1e3a2b] dark:text-[#86efac] font-bold" : "text-[#78716c]"}>
+                        {isSelected ? "Selected →" : "Select to Edit"}
+                      </span>
                     </div>
                   </div>
                 );
@@ -749,31 +784,57 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* Article body with ReactMarkdown */}
+              {/* Article body with ReactMarkdown or Editable Textarea */}
               <div className="p-8 bg-[#fcfbf9] dark:bg-[#1c1917] border border-[#e7e5e4] dark:border-[#27272a] rounded-[2px] space-y-4">
                 <div className="text-xs font-mono text-[#78716c] uppercase border-b border-[#e7e5e4] dark:border-[#27272a] pb-2 flex justify-between items-center">
-                  <span>Public Reader View Preview</span>
+                  <span>{selectedDraft?.status === "published" ? "Published Article — Reader View" : "Public Reader View Preview"}</span>
                   <span className="text-[#1e3a2b] dark:text-[#86efac] font-bold">By {preview.authorName || authorName} ({preview.authorRole || authorRole})</span>
                 </div>
-                <h1 className="font-serif text-2xl font-bold">{preview.title}</h1>
-                <p className="text-sm font-serif text-[#57534e] dark:text-[#a1a1aa] italic mb-6">{preview.excerpt}</p>
-                <div className="prose prose-stone dark:prose-invert max-w-none prose-a:text-[#1e3a2b] dark:prose-a:text-[#488263] prose-strong:text-[#1c1917] dark:prose-strong:text-[#f5f5f4] prose-strong:font-bold">
-                  <ReactMarkdown
-                    components={{
-                      h2: ({ node, ...props }) => (
-                        <h2 className="text-xl font-serif font-bold text-[#1c1917] dark:text-[#f5f5f4] mt-8 mb-3 border-b border-[#e7e5e4] dark:border-[#27272a] pb-1" {...props} />
-                      ),
-                      h3: ({ node, ...props }) => (
-                        <h3 className="text-lg font-serif font-bold text-[#1e3a2b] dark:text-[#86efac] mt-6 mb-2" {...props} />
-                      ),
-                      p: ({ node, ...props }) => (
-                        <p className="mb-5 leading-relaxed text-[#292524] dark:text-[#e7e5e4] text-sm font-serif" {...props} />
-                      ),
-                    }}
-                  >
-                    {formatArticleContent(preview.content)}
-                  </ReactMarkdown>
-                </div>
+
+                {isEditingPublishedText ? (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-mono font-bold uppercase text-[#78716c] mb-1">Article Title</label>
+                      <input
+                        type="text"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        className="w-full p-2.5 bg-[#fcfbf9] dark:bg-[#0f0e0d] border border-[#d6d3d1] dark:border-[#3f3f46] text-base font-serif font-bold text-[#1c1917] dark:text-[#f5f5f4] rounded-[2px] focus:outline-none focus:border-[#1e3a2b]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-mono font-bold uppercase text-[#78716c] mb-1">Article Markdown Body</label>
+                      <textarea
+                        rows={14}
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        className="w-full p-3 bg-[#fcfbf9] dark:bg-[#0f0e0d] border border-[#d6d3d1] dark:border-[#3f3f46] text-xs font-mono text-[#1c1917] dark:text-[#f5f5f4] rounded-[2px] focus:outline-none focus:border-[#1e3a2b]"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <h1 className="font-serif text-2xl font-bold">{preview.title}</h1>
+                    <p className="text-sm font-serif text-[#57534e] dark:text-[#a1a1aa] italic mb-6">{preview.excerpt}</p>
+                    <div className="prose prose-stone dark:prose-invert max-w-none prose-a:text-[#1e3a2b] dark:prose-a:text-[#488263] prose-strong:text-[#1c1917] dark:prose-strong:text-[#f5f5f4] prose-strong:font-bold">
+                      <ReactMarkdown
+                        components={{
+                          h2: ({ node, ...props }) => (
+                            <h2 className="text-xl font-serif font-bold text-[#1c1917] dark:text-[#f5f5f4] mt-8 mb-3 border-b border-[#e7e5e4] dark:border-[#27272a] pb-1" {...props} />
+                          ),
+                          h3: ({ node, ...props }) => (
+                            <h3 className="text-lg font-serif font-bold text-[#1e3a2b] dark:text-[#86efac] mt-6 mb-2" {...props} />
+                          ),
+                          p: ({ node, ...props }) => (
+                            <p className="mb-5 leading-relaxed text-[#292524] dark:text-[#e7e5e4] text-sm font-serif" {...props} />
+                          ),
+                        }}
+                      >
+                        {formatArticleContent(preview.content)}
+                      </ReactMarkdown>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Meta */}
@@ -784,21 +845,41 @@ export default function AdminPage() {
                 <div>Canonical: <code className="text-[#1c1917] dark:text-[#f5f5f4]">/news/{preview.slug}</code></div>
               </div>
 
-              {/* Publish Action Bar */}
+              {/* Action Bar */}
               <div className="pt-4 border-t border-[#e7e5e4] dark:border-[#27272a] flex justify-between items-center">
-                <button
-                  onClick={() => setShowEditViews(!showEditViews)}
-                  className="px-4 py-2 text-xs font-mono border border-[#d6d3d1] dark:border-[#3f3f46] text-[#78716c] hover:text-[#1c1917] dark:hover:text-[#f5f5f4] rounded-[2px] transition-colors"
-                >
-                  ✏️ Edit Views & Regenerate
-                </button>
-                <button
-                  onClick={handlePublish}
-                  disabled={isPending}
-                  className="px-6 py-2.5 bg-[#1e3a2b] hover:bg-[#264936] text-white font-mono text-xs uppercase tracking-wider rounded-[2px] transition-colors font-bold disabled:opacity-50"
-                >
-                  {isPending ? "Publishing..." : "Publish Article →"}
-                </button>
+                {selectedDraft?.status === "published" ? (
+                  <>
+                    <button
+                      onClick={() => setIsEditingPublishedText(!isEditingPublishedText)}
+                      className="px-4 py-2 text-xs font-mono border border-[#d6d3d1] dark:border-[#3f3f46] text-[#78716c] hover:text-[#1c1917] dark:hover:text-[#f5f5f4] rounded-[2px] transition-colors"
+                    >
+                      {isEditingPublishedText ? "👁️ Preview Changes" : "✏️ Edit Text / Title"}
+                    </button>
+                    <button
+                      onClick={handleUpdatePublished}
+                      disabled={isPending}
+                      className="px-6 py-2.5 bg-[#1e3a2b] hover:bg-[#264936] text-white font-mono text-xs uppercase tracking-wider rounded-[2px] transition-colors font-bold disabled:opacity-50"
+                    >
+                      {isPending ? "Updating..." : "💾 Save Published Updates →"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setShowEditViews(!showEditViews)}
+                      className="px-4 py-2 text-xs font-mono border border-[#d6d3d1] dark:border-[#3f3f46] text-[#78716c] hover:text-[#1c1917] dark:hover:text-[#f5f5f4] rounded-[2px] transition-colors"
+                    >
+                      ✏️ Edit Views & Regenerate
+                    </button>
+                    <button
+                      onClick={handlePublish}
+                      disabled={isPending}
+                      className="px-6 py-2.5 bg-[#1e3a2b] hover:bg-[#264936] text-white font-mono text-xs uppercase tracking-wider rounded-[2px] transition-colors font-bold disabled:opacity-50"
+                    >
+                      {isPending ? "Publishing..." : "Publish Article →"}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ) : (
