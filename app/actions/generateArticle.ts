@@ -210,7 +210,11 @@ export async function updatePostImage(postId: string, imageUrl: string) {
     ? await optimizeImage(imageUrl)
     : imageUrl;
 
-  const updatedImages = Array.from(new Set([finalImageUrl, ...(post.images ?? [])]));
+  // Only store real URLs in the images array, never base64 strings
+  const existingImages = (post.images ?? []).filter((img: string) => img.startsWith("http"));
+  const updatedImages = finalImageUrl.startsWith("http")
+    ? Array.from(new Set([finalImageUrl, ...existingImages]))
+    : existingImages;
 
   await prisma.post.update({
     where: { id: postId },
