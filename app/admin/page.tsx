@@ -210,6 +210,7 @@ export default function AdminPage() {
         try {
           const updateRes = await updatePostImage(preview.postId, base64Url);
           if (updateRes.success) {
+            // Use the local base64Url for preview display — never rely on server action to echo it back
             setPreview({
               ...preview,
               imageUrl: base64Url,

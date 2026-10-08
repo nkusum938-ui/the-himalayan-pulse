@@ -227,7 +227,8 @@ export async function updatePostImage(postId: string, imageUrl: string) {
   revalidatePath("/");
   revalidatePath(`/news/${post.slug}`);
 
-  return { success: true, imageUrl: finalImageUrl, images: updatedImages };
+  // Return only a success flag — never return base64 strings across the server action boundary
+  return { success: true, images: updatedImages };
 }
 
 export async function updatePublishedPost({
