@@ -95,6 +95,7 @@ export default async function ArticlePage({ params }: Props) {
         url: "https://thehimalayanpulse.com/logo.png",
       },
     },
+    image: post.imageUrl ? [{ "@type": "ImageObject", url: post.imageUrl, caption: `${post.title} — The Himalayan Pulse` }] : undefined,
     about: post.entities.map((e: string) => ({ "@type": "Thing", name: e })),
     speakable: {
       "@type": "SpeakableSpecification",
@@ -104,6 +105,7 @@ export default async function ArticlePage({ params }: Props) {
   };
 
   const formattedContent = formatArticleContent(post.content);
+  const isAiGeneratedImage = post.imageUrl ? post.imageUrl.startsWith("data:image") || post.imageUrl.includes("unsplash") === false : false;
 
   return (
     <div className="min-h-screen bg-[#fcfbf9] text-[#1c1917] selection:bg-[#1e3a2b] selection:text-[#f8fafc] dark:bg-[#0c0a09] dark:text-[#f5f5f4] font-sans antialiased">
@@ -159,13 +161,26 @@ export default async function ArticlePage({ params }: Props) {
 
         {/* Featured Hero Image */}
         {post.imageUrl && (
-          <div className="mb-8 sm:mb-10 overflow-hidden rounded-xs border border-[#e7e5e4] dark:border-[#27272a] shadow-xs">
-            <img
-              src={post.imageUrl}
-              alt={post.title}
-              className="w-full h-auto max-h-[300px] sm:max-h-[440px] md:max-h-[520px] object-cover"
-            />
-          </div>
+          <figure className="mb-8 sm:mb-10">
+            <div className="overflow-hidden rounded-xs border border-[#e7e5e4] dark:border-[#27272a] shadow-xs">
+              <img
+                src={post.imageUrl}
+                alt={`${post.title} — Himalayan report covering ${post.entities.slice(0, 3).join(", ") || "mountain ecosystem"}`}
+                loading="eager"
+                className="w-full h-auto max-h-[300px] sm:max-h-[440px] md:max-h-[520px] object-cover"
+              />
+            </div>
+            <figcaption className="mt-2 text-center text-[11px] font-mono text-[#78716c] dark:text-[#a1a1aa] flex items-center justify-center gap-1.5">
+              {isAiGeneratedImage ? (
+                <>
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span>✦ AI-generated editorial visualization — The Himalayan Pulse</span>
+                </>
+              ) : (
+                <span>Photo dispatch — {post.entities[0] || "Himalayan Region"}</span>
+              )}
+            </figcaption>
+          </figure>
         )}
 
         {/* MAIN LAYOUT GRID (Article Body + Sidebar) */}

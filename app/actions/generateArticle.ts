@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { ensureGoogleCredentials } from "@/lib/google-auth";
 import { revalidatePath } from "next/cache";
 import { formatArticleContent } from "@/lib/formatContent";
+import { optimizeImage } from "@/lib/imageOptimizer";
 
 function getAI() {
   ensureGoogleCredentials();
@@ -29,7 +30,9 @@ export async function generateAIImage({ prompt }: { prompt: string }) {
     });
     const base64Image = response.generatedImages?.[0]?.image?.imageBytes;
     if (base64Image) {
-      return { imageUrl: `data:image/jpeg;base64,${base64Image}` };
+      const rawUrl = `data:image/jpeg;base64,${base64Image}`;
+      const optimizedUrl = await optimizeImage(rawUrl);
+      return { imageUrl: optimizedUrl };
     }
   } catch (err) {
     console.error("[Imagen Generation Error]", err);
@@ -148,6 +151,11 @@ Strict rules:
     where: { draftId, isDraft: true },
   });
 
+  const initialImage = imageUrl ?? availableImages[0] ?? null;
+  const finalImageUrl = (initialImage && initialImage.startsWith("data:image"))
+    ? await optimizeImage(initialImage)
+    : initialImage;
+
   const post = await prisma.post.create({
     data: {
       draftId,
@@ -162,7 +170,7 @@ Strict rules:
       entities: articleData.entities,
       authorName: finalAuthorName,
       authorRole: finalAuthorRole,
-      imageUrl: imageUrl ?? availableImages[0] ?? null,
+      imageUrl: finalImageUrl,
       images: availableImages,
       originalSources: sources,
       isDraft: true,
@@ -198,17 +206,67 @@ export async function updatePostImage(postId: string, imageUrl: string) {
   const post = await prisma.post.findUnique({ where: { id: postId } });
   if (!post) return { success: false };
 
-  const updatedImages = Array.from(new Set([imageUrl, ...(post.images ?? [])]));
+  const finalImageUrl = imageUrl.startsWith("data:image")
+    ? await optimizeImage(imageUrl)
+    : imageUrl;
+
+  const updatedImages = Array.from(new Set([finalImageUrl, ...(post.images ?? [])]));
 
   await prisma.post.update({
     where: { id: postId },
     data: {
-      imageUrl,
+      imageUrl: finalImageUrl,
       images: updatedImages,
     },
   });
 
-  return { success: true, imageUrl, images: updatedImages };
+  revalidatePath("/");
+  revalidatePath(`/news/${post.slug}`);
+
+  return { success: true, imageUrl: finalImageUrl, images: updatedImages };
+}
+
+export async function updatePublishedPost({
+  postId,
+  title,
+  content,
+  excerpt,
+  imageUrl,
+  authorName,
+  authorRole,
+}: {
+  postId: string;
+  title?: string;
+  content?: string;
+  excerpt?: string;
+  imageUrl?: string | null;
+  authorName?: string;
+  authorRole?: string;
+}) {
+  const post = await prisma.post.findUnique({ where: { id: postId } });
+  if (!post) return { success: false, error: "Post not found" };
+
+  let finalImageUrl = imageUrl;
+  if (imageUrl && imageUrl.startsWith("data:image")) {
+    finalImageUrl = await optimizeImage(imageUrl);
+  }
+
+  const updated = await prisma.post.update({
+    where: { id: postId },
+    data: {
+      ...(title ? { title: title.trim() } : {}),
+      ...(content ? { content: content.replaceAll("\\n", "\n") } : {}),
+      ...(excerpt ? { excerpt: excerpt.trim() } : {}),
+      ...(finalImageUrl !== undefined ? { imageUrl: finalImageUrl } : {}),
+      ...(authorName ? { authorName: authorName.trim() } : {}),
+      ...(authorRole ? { authorRole: authorRole.trim() } : {}),
+    },
+  });
+
+  revalidatePath("/");
+  revalidatePath(`/news/${post.slug}`);
+
+  return { success: true, post: updated };
 }
 
 export async function publishPost(postId: string, draftId: string, slug: string, authorName?: string, authorRole?: string) {
@@ -255,7 +313,7 @@ export async function getDraftsForDate(date: string) {
 
 export async function getGeneratedPreview(draftId: string) {
   const post = await prisma.post.findFirst({
-    where: { draftId, isDraft: true },
+    where: { draftId },
     orderBy: { updatedAt: "desc" },
   });
 
@@ -276,6 +334,7 @@ export async function getGeneratedPreview(draftId: string) {
     authorRole: post.authorRole,
     imageUrl: post.imageUrl,
     images: post.images,
+    isDraft: post.isDraft,
   };
 }
 

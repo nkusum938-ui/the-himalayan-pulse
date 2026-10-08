@@ -19,6 +19,14 @@ export const metadata: Metadata = {
   description:
     "Independent reporting on Himalayan environment, culture, and community life across Uttarakhand, Himachal, Ladakh, Sikkim, Nepal, Bhutan, and Arunachal Pradesh.",
   metadataBase: new URL("https://thehimalayanpulse.com"),
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/logo.png", type: "image/png" },
+    ],
+    shortcut: "/icon.svg",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
