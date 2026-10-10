@@ -273,18 +273,47 @@ export default async function ArticlePage({ params }: Props) {
             {/* Sources */}
             {(() => {
               const groundSource = "Himalayan Pulse Field Desk — Regional Ground Bureau";
+
+              // Clean a raw source string — handles Google News redirects and "title | url" mixed formats
+              function cleanSource(src: string): string {
+                // If it contains " | http", it's a "title | url" mixed string — extract the URL part
+                const pipeIdx = src.indexOf(" | http");
+                const urlStr = pipeIdx !== -1 ? src.slice(pipeIdx + 3).trim() : src.trim();
+
+                try {
+                  const url = new URL(urlStr);
+                  // Google News redirect — extract the real publisher from the article title part
+                  if (url.hostname === "news.google.com") {
+                    if (pipeIdx !== -1) {
+                      // Extract publisher from the title part: "Title - Publisher"
+                      const titlePart = src.slice(0, pipeIdx).trim();
+                      const dashIdx = titlePart.lastIndexOf(" - ");
+                      if (dashIdx !== -1) {
+                        return `${titlePart.slice(dashIdx + 3).trim()} (Verified Dispatch)`;
+                      }
+                    }
+                    return "Google News Bureau (Verified Dispatch)";
+                  }
+                  return `${url.hostname.replace(/^www\./, "")} (Verified Dispatch)`;
+                } catch {
+                  // Not a URL — could be "Title - Publisher" plain text
+                  const dashIdx = src.lastIndexOf(" - ");
+                  if (dashIdx !== -1) {
+                    return `${src.slice(dashIdx + 3).trim()} (Verified Dispatch)`;
+                  }
+                  return src;
+                }
+              }
+
               const formattedSources = [
                 groundSource,
-                ...post.originalSources
-                  .map((src: string) => {
-                    try {
-                      const url = new URL(src);
-                      return `${url.hostname.replace(/^www\./, "")} (Verified Dispatch)`;
-                    } catch {
-                      return src;
-                    }
-                  })
-                  .filter((s: string) => s !== groundSource),
+                ...Array.from(
+                  new Set(
+                    post.originalSources
+                      .map(cleanSource)
+                      .filter((s: string) => s !== groundSource && s.length > 0)
+                  )
+                ),
               ];
 
               return (

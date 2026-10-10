@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { NewsletterSubscribe } from "@/components/NewsletterSubscribe";
+import { NewsGrid } from "@/components/NewsGrid";
 
-export const revalidate = 60; // ISR: revalidate every 60 seconds
+export const revalidate = 60;
+
+const PAGE_SIZE = 12;
 
 interface PostSummary {
   id: string;
@@ -17,11 +20,12 @@ interface PostSummary {
   imageUrl: string | null;
 }
 
-async function getPublishedPosts(): Promise<PostSummary[]> {
+async function getInitialPosts(): Promise<{ posts: PostSummary[]; nextCursor: string | null }> {
   try {
-    return await prisma.post.findMany({
+    const posts = await prisma.post.findMany({
       where: { isDraft: false },
       orderBy: { publishedAt: "desc" },
+      take: PAGE_SIZE + 1,
       select: {
         id: true,
         title: true,
@@ -35,14 +39,17 @@ async function getPublishedPosts(): Promise<PostSummary[]> {
         imageUrl: true,
       },
     });
+    const hasMore = posts.length > PAGE_SIZE;
+    const data = hasMore ? posts.slice(0, PAGE_SIZE) : posts;
+    return { posts: data, nextCursor: hasMore ? data[data.length - 1].id : null };
   } catch (err) {
-    console.error("[getPublishedPosts DB Error]", err);
-    return [];
+    console.error("[getInitialPosts DB Error]", err);
+    return { posts: [], nextCursor: null };
   }
 }
 
 export default async function Home() {
-  const posts = await getPublishedPosts();
+  const { posts, nextCursor } = await getInitialPosts();
 
   const leadPost = posts[0] ?? null;
   const restPosts = posts.slice(1);
@@ -137,45 +144,16 @@ export default async function Home() {
               </section>
             )}
 
-            {/* ARTICLE GRID */}
+            {/* ARTICLE GRID — infinite scroll */}
             {restPosts.length > 0 && (
               <section>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-                  {restPosts.map((post: PostSummary) => (
-                    <Link
-                      key={post.id}
-                      href={`/news/${post.slug}`}
-                      className="group flex flex-col justify-between bg-white dark:bg-[#141210] border border-[#e7e5e4] dark:border-[#27272a] p-5 sm:p-6 rounded-sm hover:border-[#1e3a2b] dark:hover:border-[#488263] transition-colors"
-                    >
-                      <div>
-                        {post.entities.length > 0 && (
-                          <div className="text-xs font-mono text-[#1e3a2b] dark:text-[#488263] font-semibold uppercase mb-2 tracking-wider">
-                            {post.entities[0]}
-                          </div>
-                        )}
-                        <h3 className="text-base sm:text-lg font-serif font-bold text-[#1c1917] dark:text-[#f5f5f4] group-hover:text-[#1e3a2b] dark:group-hover:text-[#488263] transition-colors mb-2 leading-snug">
-                          {post.title}
-                        </h3>
-                        {post.imageUrl && (
-                          <div className="my-3 overflow-hidden rounded-xs border border-[#e7e5e4] dark:border-[#27272a]">
-                            <img
-                              src={post.imageUrl}
-                              alt={post.title}
-                              className="w-full h-36 object-cover group-hover:scale-[1.02] transition-transform duration-300"
-                            />
-                          </div>
-                        )}
-                        <p className="text-xs text-[#57534e] dark:text-[#a1a1aa] font-serif leading-relaxed line-clamp-3 mb-4">
-                          {post.excerpt}
-                        </p>
-                      </div>
-                      <div className="text-xs font-mono text-[#78716c] dark:text-[#a1a1aa] pt-3 border-t border-[#f5f4f0] dark:border-[#27272a]/60 flex items-center justify-between">
-                        <span className="truncate max-w-[140px]">{post.authorName}</span>
-                        <span className="shrink-0">{new Date(post.publishedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
+                <NewsGrid
+                  initialPosts={restPosts.map((p) => ({
+                    ...p,
+                    publishedAt: p.publishedAt.toISOString(),
+                  }))}
+                  initialCursor={nextCursor}
+                />
               </section>
             )}
           </>
