@@ -72,8 +72,26 @@ export async function GET(req: NextRequest) {
   return runIngest(req, "cron");
 }
 
+// Manual ingest: acknowledge immediately, run in background to avoid proxy timeouts
 export async function POST(req: NextRequest) {
-  return runIngest(req, "manual");
+  // Validate auth before firing background job
+  const body: { passphrase?: string; date?: string } = await req.json().catch(() => ({}));
+  if (body.passphrase !== process.env.ADMIN_ACCESS_PASSPHRASE) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Fire and forget — runs after response is sent
+  const reqClone = new Request(req.url, {
+    method: req.method,
+    headers: req.headers,
+    body: JSON.stringify(body),
+  });
+  void runIngest(new NextRequest(reqClone), "manual");
+
+  return NextResponse.json(
+    { success: true, message: "Ingest started in background. Refresh drafts in ~60–90 seconds." },
+    { status: 202 }
+  );
 }
 
 async function runIngest(req: NextRequest, runType: "cron" | "manual") {
